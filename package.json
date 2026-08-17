@@ -16,7 +16,8 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "test": "npm run build && node test/renderer-isolation.js"
   },
   "devDependencies": {
     "@getflywheel/local": "^9",
@@ -35,6 +36,6 @@
     "fs-extra"
   ],
   "engines": {
-    "local-by-flywheel": "^6.0.0"
+    "local-by-flywheel": ">=6.0.0"
   }
 }

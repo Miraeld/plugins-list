@@ -1,6 +1,6 @@
 import * as LocalRenderer from '@getflywheel/local/renderer';
-import { IPC_EXPORT_CSV, IPC_SCAN_ALL, IPC_SCAN_SITE } from './main';
-import { compareVersions } from './lib/scan';
+import { IPC_EXPORT_CSV, IPC_SCAN_ALL, IPC_SCAN_SITE } from './lib/channels';
+import { compareVersions } from './lib/version';
 import { ActiveState, Extension, ExtensionKind, Matrix, SiteScan } from './lib/types';
 import { injectStyles } from './styles';
 import { getReact } from './react';

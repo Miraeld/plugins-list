@@ -2,12 +2,11 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import { app, shell } from 'electron';
 import * as LocalMain from '@getflywheel/local/main';
-import { scanSiteFiles, compareVersions } from './lib/scan';
+import { scanSiteFiles } from './lib/scan';
+import { compareVersions } from './lib/version';
 import { ActiveState, Extension, Matrix, MatrixRow, SiteScan } from './lib/types';
 
-export const IPC_SCAN_SITE = 'plugins-list:scan-site';
-export const IPC_SCAN_ALL = 'plugins-list:scan-all';
-export const IPC_EXPORT_CSV = 'plugins-list:export-csv';
+import { IPC_EXPORT_CSV, IPC_SCAN_ALL, IPC_SCAN_SITE } from './lib/channels';
 
 const CACHE_KEY = 'pluginsListActivationCache';
 
