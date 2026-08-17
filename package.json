@@ -1,0 +1,40 @@
+{
+  "name": "plugins-list",
+  "productName": "Plugins List",
+  "version": "0.1.0",
+  "description": "See every plugin, theme and mu-plugin installed across your Local sites — without starting them.",
+  "slug": "plugins-list",
+  "icon": "icon.svg",
+  "bgColor": "#3fa9f5",
+  "renderer": "lib/renderer.js",
+  "main": "lib/main.js",
+  "author": "Gaël Robin",
+  "license": "MIT",
+  "keywords": [
+    "local-addon"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "@getflywheel/local": "^9",
+    "@types/fs-extra": "^9.0.13",
+    "@types/react": "^16.14.0",
+    "react": "^16.14.0",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "fs-extra": "^9.1.0"
+  },
+  "peerDependencies": {
+    "react": ">= 16.9.0"
+  },
+  "bundledDependencies": [
+    "fs-extra"
+  ],
+  "engines": {
+    "local-by-flywheel": "^6.0.0"
+  }
+}
