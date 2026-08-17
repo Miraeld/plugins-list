@@ -209,7 +209,12 @@ export function PluginsPanel({ siteId, defaultView, lockView, onClose }: {
 
 		try {
 			if (view === 'site') {
-				if (!siteId) { throw new Error('No site in context.'); }
+				if (!siteId) {
+					throw new Error(
+						'Could not tell which site this is — showing all sites instead. '
+						+ 'Please report this with your Local version.',
+					);
+				}
 
 				setScan(await LocalRenderer.ipcAsync(IPC_SCAN_SITE, siteId, withSizes) as SiteScan);
 			} else {
@@ -347,9 +352,19 @@ export function PluginsPanel({ siteId, defaultView, lockView, onClose }: {
 	);
 }
 
-/** Entry point for the per-site tools tab. */
-export default function PluginsList(props: { match?: { params?: { siteID?: string } } }) {
+/**
+ * Entry point for the per-site tools tab.
+ *
+ * `siteId` is passed explicitly by renderer.tsx. The `match` fallback only
+ * covers Local versions that hand route props to the render callback — current
+ * ones call `render()` with nothing at all.
+ */
+export default function PluginsList(props: {
+	siteId?: string;
+	match?: { params?: { siteID?: string } };
+}) {
 	const React = getReact();
+	const siteId = props?.siteId || props?.match?.params?.siteID;
 
-	return <PluginsPanel siteId={props?.match?.params?.siteID} />;
+	return <PluginsPanel siteId={siteId} />;
 }
