@@ -28,12 +28,13 @@ Module._load = function (req, parent, isMain) {
       getServiceContainer: () => ({ cradle: buildCradle() }),
     };
   }
+  if (req === '@getflywheel/local/main2') return null;
   if (req === 'electron') return { app: { getPath: () => '/tmp' }, shell: { showItemInFolder() {} } };
   return orig(req, parent, isMain);
 };
 
 const SITE_PATH = path.join(process.env.HOME, 'Local Sites/imagify');
-const sites = { s1: { id: 's1', name: 'imagify', path: SITE_PATH, phpVersion: '8.4.10' } };
+const sites = { s1: { id: 's1', name: 'imagify', path: '~/Local Sites/imagify', phpVersion: '8.4.10' } };
 const handlers = {};
 require(path.join(ADDON, 'lib/main.js')).default();
 

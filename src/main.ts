@@ -41,7 +41,16 @@ function writeCacheEntry(siteId: string, entry: CacheEntry): void {
 
 function publicDirOf(site: any): string {
 	// `site.paths.webRoot` is the modern field; older site records only carry `path`.
-	return site?.paths?.webRoot || path.join(site?.path || '', 'app', 'public');
+	const raw = site?.paths?.webRoot || path.join(site?.path || '', 'app', 'public');
+
+	// sites.json stores most paths with a literal "~" (10 of 12 here), which
+	// path.join happily turns into a directory that does not exist. Local
+	// exports formatHomePath for precisely this.
+	try {
+		return (LocalMain as any).formatHomePath(raw);
+	} catch (e) {
+		return raw.startsWith('~') ? path.join(process.env.HOME || '', raw.slice(1)) : raw;
+	}
 }
 
 function phpVersionOf(site: any): string {
