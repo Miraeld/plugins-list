@@ -37,6 +37,21 @@ table.pl tbody tr:hover td.pl-name { background: #f9fbfc; }
 .pl-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: #eef1f3; color: #6b7683; font-size: 11px; margin-left: 6px; }
 .pl-legend { display: flex; gap: 16px; flex-wrap: wrap; color: #6b7683; margin-top: 12px; font-size: 12px; }
 .pl-empty { padding: 40px; text-align: center; color: #6b7683; }
+
+/* Sidebar entry point */
+.pl-sidebar-btn { display: flex; align-items: center; gap: 8px; width: calc(100% - 20px); margin: 4px 10px 8px;
+  padding: 7px 10px; border: 1px solid #d6dbe0; border-radius: 6px; background: #fff; cursor: pointer;
+  font-size: 12px; color: #4a5560; text-align: left; }
+.pl-sidebar-btn:hover { background: #f4f7f9; border-color: #b9c2ca; }
+.pl-sidebar-icon { width: 12px; height: 12px; border-radius: 2px; flex: 0 0 auto;
+  background: linear-gradient(#3fa9f5 0 45%, #29b24a 55% 100%); }
+
+/* Full-screen overlay for the global view */
+.pl-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(22, 28, 34, .45);
+  display: flex; align-items: center; justify-content: center; padding: 32px; }
+.pl-overlay-inner { background: #fff; border-radius: 10px; width: 100%; height: 100%;
+  max-width: 1500px; overflow: auto; box-shadow: 0 18px 50px rgba(0,0,0,.3); }
+.pl-overlay-inner .pl-scroll { max-height: none; }
 `;
 
 export function injectStyles(): void {

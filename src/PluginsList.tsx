@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as LocalRenderer from '@getflywheel/local/renderer';
 import { IPC_EXPORT_CSV, IPC_SCAN_ALL, IPC_SCAN_SITE } from './main';
 import { compareVersions } from './lib/scan';
 import { ActiveState, Extension, ExtensionKind, Matrix, SiteScan } from './lib/types';
 import { injectStyles } from './styles';
+import { getReact } from './react';
 
 type View = 'site' | 'all';
 type KindFilter = 'all' | ExtensionKind;
@@ -15,9 +15,9 @@ const KIND_LABEL: Record<ExtensionKind, string> = {
 };
 
 function Dot({ state }: { state: ActiveState }) {
-	const className = state === 'network-active' ? 'network' : state;
+	const React = getReact();
 
-	return <span className={`pl-dot ${className}`} title={state} />;
+	return <span className={`pl-dot ${state === 'network-active' ? 'network' : state}`} title={state} />;
 }
 
 function formatSize(bytes?: number): string {
@@ -39,23 +39,24 @@ async function exportCsv(fileName: string, rows: Array<Array<string | number>>):
 	await LocalRenderer.ipcAsync(IPC_EXPORT_CSV, fileName, contents);
 }
 
-/** Per-site table: everything on disk for the site currently being viewed. */
+/** Per-site table: everything on disk for one site. */
 function SiteTable({ scan, query, kind }: { scan: SiteScan; query: string; kind: KindFilter }) {
-	const [sortKey, setSortKey] = useState<'name' | 'version' | 'size' | 'active'>('name');
+	const React = getReact();
+	const { useMemo, useState } = React;
+	const [sortKey, setSortKey] = useState('name');
 	const [asc, setAsc] = useState(true);
 
 	const rows = useMemo(() => {
 		const needle = query.trim().toLowerCase();
-		const filtered = scan.extensions.filter((extension) => {
+		const filtered = scan.extensions.filter((extension: Extension) => {
 			if (kind !== 'all' && extension.kind !== kind) { return false; }
 			if (!needle) { return true; }
 
 			return `${extension.name} ${extension.slug} ${extension.author}`.toLowerCase().includes(needle);
 		});
-
 		const direction = asc ? 1 : -1;
 
-		return filtered.sort((a, b) => {
+		return filtered.sort((a: Extension, b: Extension) => {
 			if (sortKey === 'version') { return compareVersions(a.version, b.version) * direction; }
 			if (sortKey === 'size') { return ((a.size || 0) - (b.size || 0)) * direction; }
 			if (sortKey === 'active') { return a.active.localeCompare(b.active) * direction; }
@@ -64,13 +65,11 @@ function SiteTable({ scan, query, kind }: { scan: SiteScan; query: string; kind:
 		});
 	}, [scan, query, kind, sortKey, asc]);
 
-	const sortBy = (key: typeof sortKey) => () => {
+	const sortBy = (key: string) => () => {
 		if (key === sortKey) { setAsc(!asc); } else { setSortKey(key); setAsc(true); }
 	};
 
-	if (!rows.length) {
-		return <div className="pl-empty">Nothing matches that filter.</div>;
-	}
+	if (!rows.length) { return <div className="pl-empty">Nothing matches that filter.</div>; }
 
 	return (
 		<div className="pl-scroll">
@@ -108,35 +107,30 @@ function SiteTable({ scan, query, kind }: { scan: SiteScan; query: string; kind:
 	);
 }
 
-/** The cross-site matrix: one row per plugin, one column per site. */
+/** The cross-site matrix: one row per item, one column per site. */
 function MatrixTable({ matrix, query, kind, staleOnly }: {
-	matrix: Matrix;
-	query: string;
-	kind: KindFilter;
-	staleOnly: boolean;
+	matrix: Matrix; query: string; kind: KindFilter; staleOnly: boolean;
 }) {
+	const React = getReact();
+	const { useMemo } = React;
+
 	const rows = useMemo(() => {
 		const needle = query.trim().toLowerCase();
 
 		return matrix.rows.filter((row) => {
 			if (kind !== 'all' && row.kind !== kind) { return false; }
-
 			if (needle && !`${row.name} ${row.slug}`.toLowerCase().includes(needle)) { return false; }
 
 			if (staleOnly) {
-				const hasStale = Object.values(row.sites)
+				return Object.values(row.sites)
 					.some((cell) => cell.version && compareVersions(cell.version, row.newestVersion) < 0);
-
-				if (!hasStale) { return false; }
 			}
 
 			return true;
 		});
 	}, [matrix, query, kind, staleOnly]);
 
-	if (!rows.length) {
-		return <div className="pl-empty">Nothing matches that filter.</div>;
-	}
+	if (!rows.length) { return <div className="pl-empty">Nothing matches that filter.</div>; }
 
 	return (
 		<div className="pl-scroll">
@@ -166,16 +160,13 @@ function MatrixTable({ matrix, query, kind, staleOnly }: {
 							{matrix.sites.map((site) => {
 								const cell = row.sites[site.siteId];
 
-								if (!cell) {
-									return <td key={site.siteId} className="pl-cell pl-absent">—</td>;
-								}
+								if (!cell) { return <td key={site.siteId} className="pl-cell pl-absent">—</td>; }
 
 								const stale = cell.version && compareVersions(cell.version, row.newestVersion) < 0;
 
 								return (
 									<td key={site.siteId} className={`pl-cell${stale ? ' pl-stale' : ''}`}>
-										<Dot state={cell.active} />
-										{cell.version || '?'}
+										<Dot state={cell.active} />{cell.version || '?'}
 									</td>
 								);
 							})}
@@ -187,20 +178,30 @@ function MatrixTable({ matrix, query, kind, staleOnly }: {
 	);
 }
 
-export default function PluginsList(props: { match?: { params?: { siteID?: string } } }) {
-	const siteId = props?.match?.params?.siteID;
+/**
+ * The whole panel. Used twice: inside a site's tab (siteId set, defaults to the
+ * per-site view) and as the global page (no siteId, matrix only).
+ */
+export function PluginsPanel({ siteId, defaultView, lockView, onClose }: {
+	siteId?: string;
+	defaultView?: View;
+	lockView?: boolean;
+	onClose?: () => void;
+}) {
+	const React = getReact();
+	const { useCallback, useEffect, useState } = React;
 
-	const [view, setView] = useState<View>('site');
+	const [view, setView] = useState(defaultView || (siteId ? 'site' : 'all')) as [View, (v: View) => void];
 	const [query, setQuery] = useState('');
-	const [kind, setKind] = useState<KindFilter>('plugin');
+	const [kind, setKind] = useState('plugin') as [KindFilter, (k: KindFilter) => void];
 	const [staleOnly, setStaleOnly] = useState(false);
 	const [withSizes, setWithSizes] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState('');
-	const [scan, setScan] = useState<SiteScan | null>(null);
-	const [matrix, setMatrix] = useState<Matrix | null>(null);
+	const [scan, setScan] = useState(null) as [SiteScan | null, (s: SiteScan) => void];
+	const [matrix, setMatrix] = useState(null) as [Matrix | null, (m: Matrix) => void];
 
-	useEffect(injectStyles, []);
+	useEffect(() => { injectStyles(); }, []);
 
 	const load = useCallback(async () => {
 		setLoading(true);
@@ -251,20 +252,33 @@ export default function PluginsList(props: { match?: { params?: { siteID?: strin
 	};
 
 	const freshness = scan && scan.activeSource === 'cache' && scan.activeCachedAt
-		? `Activation state from cache (${new Date(scan.activeCachedAt).toLocaleString()}) — start the site for live data.`
+		? `activation from cache (${new Date(scan.activeCachedAt).toLocaleString()})`
 		: scan && scan.activeSource === 'none'
-			? 'Activation state unknown — start the site to see what is active.'
+			? 'activation unknown — start the site for live data'
 			: '';
 
 	return (
 		<div className="pl-wrap">
 			<div className="pl-head">
-				<h2 className="pl-title">Plugins List</h2>
-				<div className="pl-tabs">
-					<button className={`pl-tab${view === 'site' ? ' is-on' : ''}`} onClick={() => setView('site')}>This site</button>
-					<button className={`pl-tab${view === 'all' ? ' is-on' : ''}`} onClick={() => setView('all')}>All sites</button>
-				</div>
+				<h2 className="pl-title">{view === 'all' ? 'Plugins — all sites' : 'Plugins'}</h2>
+
+				{!lockView && (
+					<div className="pl-tabs">
+						<button
+							className={`pl-tab${view === 'site' ? ' is-on' : ''}`}
+							disabled={!siteId}
+							onClick={() => setView('site')}
+						>
+							This site
+						</button>
+						<button className={`pl-tab${view === 'all' ? ' is-on' : ''}`} onClick={() => setView('all')}>
+							All sites
+						</button>
+					</div>
+				)}
+
 				<div className="pl-spacer" />
+
 				<input
 					className="pl-input"
 					placeholder="Search name or slug…"
@@ -277,6 +291,7 @@ export default function PluginsList(props: { match?: { params?: { siteID?: strin
 					<option value="theme">Themes</option>
 					<option value="all">Everything</option>
 				</select>
+
 				{view === 'all' && (
 					<label>
 						<input type="checkbox" checked={staleOnly} onChange={(event) => setStaleOnly(event.target.checked)} />
@@ -289,8 +304,10 @@ export default function PluginsList(props: { match?: { params?: { siteID?: strin
 						{' '}Sizes
 					</label>
 				)}
+
 				<button className="pl-btn" onClick={load} disabled={loading}>{loading ? 'Scanning…' : 'Rescan'}</button>
 				<button className="pl-btn" onClick={onExport} disabled={loading}>Export CSV</button>
+				{onClose && <button className="pl-btn" onClick={onClose}>Close</button>}
 			</div>
 
 			{error && <div className="pl-err">{error}</div>}
@@ -309,12 +326,11 @@ export default function PluginsList(props: { match?: { params?: { siteID?: strin
 			{view === 'all' && matrix && (
 				<p className="pl-note">
 					{matrix.rows.length} unique items across {matrix.sites.length} sites.
-					{' '}Red means an older version than the newest copy you have locally.
+					{' '}Red means older than the newest copy you have locally.
 				</p>
 			)}
 
 			{loading && <div className="pl-empty">Reading from disk…</div>}
-
 			{!loading && view === 'site' && scan && <SiteTable scan={scan} query={query} kind={kind} />}
 			{!loading && view === 'all' && matrix && (
 				<MatrixTable matrix={matrix} query={query} kind={kind} staleOnly={staleOnly} />
@@ -329,4 +345,11 @@ export default function PluginsList(props: { match?: { params?: { siteID?: strin
 			</div>
 		</div>
 	);
+}
+
+/** Entry point for the per-site tools tab. */
+export default function PluginsList(props: { match?: { params?: { siteID?: string } } }) {
+	const React = getReact();
+
+	return <PluginsPanel siteId={props?.match?.params?.siteID} />;
 }
