@@ -8,11 +8,13 @@ import { ActiveState, Extension, Matrix, MatrixRow, SiteScan } from './lib/types
 
 import { IPC_EXPORT_CSV, IPC_SCAN_ALL, IPC_SCAN_SITE } from './lib/channels';
 
-const CACHE_KEY = 'pluginsListActivationCache';
+// V2: keys are now `kind:identifier` rather than bare plugin files, so old
+// entries would silently never match.
+const CACHE_KEY = 'pluginsListActivationCacheV2';
 
 interface CacheEntry {
 	at: number;
-	/** pluginFile -> state */
+	/** `plugin:<file>` or `theme:<slug>` -> state */
 	states: Record<string, ActiveState>;
 }
 
@@ -47,47 +49,90 @@ function phpVersionOf(site: any): string {
 }
 
 /**
- * Ask WP-CLI which plugins are active. Only works while the site is running,
- * so every failure path is expected rather than exceptional.
+ * Local's own status, which is NOT on the site record — reading `site.status`
+ * returns undefined and silently skips the WP-CLI call entirely.
  */
-async function fetchActivation(site: any): Promise<Record<string, ActiveState> | null> {
+function statusOf(site: any): string {
+	try {
+		const { siteProcessManager } = LocalMain.getServiceContainer().cradle as any;
+
+		return siteProcessManager.getSiteStatus(site) || '';
+	} catch (e) {
+		return site?.status || '';
+	}
+}
+
+function toState(status: string): ActiveState {
+	if (status === 'active') { return 'active'; }
+	if (status === 'active-network') { return 'network-active'; }
+
+	// must-use and dropin are on whether WordPress lists them or not.
+	if (status === 'must-use' || status === 'dropin') { return 'active'; }
+
+	return 'inactive';
+}
+
+/**
+ * Ask WP-CLI what is active. Requires a running site, so a failure here is
+ * routine — but it must be *reported*, not swallowed, or the UI shows an amber
+ * "unknown" with no way to find out why.
+ */
+async function fetchActivation(
+	site: any,
+): Promise<{ states?: Record<string, ActiveState>; error?: string }> {
+	const status = statusOf(site);
+
+	if (status !== 'running') {
+		return { error: `site is "${status || 'not running'}" — start it for live activation data` };
+	}
+
 	try {
 		const { wpCli } = LocalMain.getServiceContainer().cradle as any;
-		const raw = await wpCli.run(site, [
-			'plugin', 'list', '--format=json', '--fields=file,status',
-		]);
-		const jsonStart = String(raw).indexOf('[');
 
-		if (jsonStart === -1) { return null; }
-
-		const rows = JSON.parse(String(raw).slice(jsonStart));
-		const states: Record<string, ActiveState> = {};
-
-		for (const row of rows) {
-			if (!row || !row.file) { continue; }
-
-			if (row.status === 'active') {
-				states[row.file] = 'active';
-			} else if (row.status === 'active-network') {
-				states[row.file] = 'network-active';
-			} else if (row.status === 'must-use' || row.status === 'dropin') {
-				states[row.file] = 'active';
-			} else {
-				states[row.file] = 'inactive';
-			}
+		if (!wpCli || typeof wpCli.getPlugins !== 'function') {
+			return { error: 'Local\'s WP-CLI service is unavailable in this version' };
 		}
 
-		return states;
+		const [plugins, themes] = await Promise.all([
+			wpCli.getPlugins(site).catch((e: Error) => { throw new Error(`wp plugin list failed: ${e.message}`); }),
+			wpCli.getThemes(site).catch(() => null),
+		]);
+
+		if (!plugins) { return { error: 'wp plugin list returned nothing' }; }
+
+		const states: Record<string, ActiveState> = {};
+
+		for (const row of plugins) {
+			if (!row || !row.file) { continue; }
+
+			// `file` is the plugins-dir-relative path, matching our pluginFile.
+			states[`plugin:${row.file}`] = toState(row.status);
+
+			// Also index by folder, so a row still resolves if we picked a
+			// different entry PHP file than WordPress did.
+			const folder = String(row.file).split('/')[0];
+
+			states[`slug:${folder}`] = toState(row.status);
+		}
+
+		for (const row of themes || []) {
+			if (row && row.name) { states[`theme:${row.name}`] = toState(row.status); }
+		}
+
+		return { states };
 	} catch (e) {
-		return null;
+		return { error: (e as Error).message };
 	}
 }
 
 function applyActivation(extensions: Extension[], states: Record<string, ActiveState>): void {
 	for (const extension of extensions) {
-		if (extension.kind !== 'plugin') { continue; }
+		// mu-plugins are always on; the scanner already marked them active.
+		if (extension.kind === 'mu-plugin') { continue; }
 
-		const state = states[extension.pluginFile];
+		const state = extension.kind === 'theme'
+			? states[`theme:${extension.slug}`]
+			: states[`plugin:${extension.pluginFile}`] || states[`slug:${extension.slug}`];
 
 		if (state) { extension.active = state; }
 	}
@@ -107,12 +152,12 @@ async function scanSite(site: any, withSizes: boolean): Promise<SiteScan> {
 	let activeSource: SiteScan['activeSource'] = 'none';
 	let activeCachedAt: number | undefined;
 
-	const live = site.status === 'running' ? await fetchActivation(site) : null;
+	const live = await fetchActivation(site);
 
-	if (live) {
-		applyActivation(extensions, live);
+	if (live.states) {
+		applyActivation(extensions, live.states);
 		activeSource = 'wp-cli';
-		writeCacheEntry(siteId, { at: Date.now(), states: live });
+		writeCacheEntry(siteId, { at: Date.now(), states: live.states });
 	} else {
 		const cached = readCache()[siteId];
 
@@ -135,6 +180,8 @@ async function scanSite(site: any, withSizes: boolean): Promise<SiteScan> {
 		extensions,
 		activeSource,
 		activeCachedAt,
+		activeReason: live.error,
+		siteStatus: statusOf(site),
 		errors,
 	};
 }

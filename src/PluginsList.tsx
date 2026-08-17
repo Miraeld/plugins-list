@@ -256,11 +256,12 @@ export function PluginsPanel({ siteId, defaultView, lockView, onClose }: {
 		}
 	};
 
-	const freshness = scan && scan.activeSource === 'cache' && scan.activeCachedAt
-		? `activation from cache (${new Date(scan.activeCachedAt).toLocaleString()})`
-		: scan && scan.activeSource === 'none'
-			? 'activation unknown — start the site for live data'
-			: '';
+	const freshness = !scan || scan.activeSource === 'wp-cli'
+		? ''
+		: scan.activeSource === 'cache' && scan.activeCachedAt
+			? `activation from cache (${new Date(scan.activeCachedAt).toLocaleString()})`
+			+ `${scan.activeReason ? ` — ${scan.activeReason}` : ''}`
+			: `activation unknown${scan.activeReason ? ` — ${scan.activeReason}` : ''}`;
 
 	return (
 		<div className="pl-wrap">

@@ -17,7 +17,7 @@
     "build": "tsc",
     "watch": "tsc --watch",
     "prepare": "npm run build",
-    "test": "npm run build && node test/renderer-isolation.js"
+    "test": "npm run build && node test/renderer-isolation.js && node test/activation.js"
   },
   "devDependencies": {
     "@getflywheel/local": "^9",

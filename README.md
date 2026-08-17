@@ -32,7 +32,7 @@ Two tiers, so a stopped site still tells you something:
 | Installed plugins/themes, versions, requirements | Plugin header comment, first 8KB of each file — same as WP's `get_file_data()` | No |
 | WP version | `wp-includes/version.php` | No |
 | Multisite | `wp-config.php` | No |
-| Active / inactive | `wp plugin list` via Local's WP-CLI service | Yes — otherwise falls back to a per-site cache, then to `unknown` |
+| Active / inactive, active theme | `wpCli.getPlugins()` / `getThemes()`, gated on `siteProcessManager.getSiteStatus(site) === 'running'` | Yes — otherwise falls back to a per-site cache, then to `unknown`, and always states the reason |
 
 Nothing is written to your sites. The only persisted state is the activation cache in Local's user data.
 
@@ -54,7 +54,6 @@ macOS paths above; on Windows it's `%APPDATA%\Local\addons`.
 ## Known gaps
 
 - Activation state needs the site running at least once. Local can't reach MySQL for a stopped site.
-- Themes are listed but active-theme detection isn't wired up yet.
 - No wp.org lookup yet, so "newest" means *the newest copy across your own sites*, not the newest release.
 
 MIT.
